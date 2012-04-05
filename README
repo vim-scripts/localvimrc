@@ -2,19 +2,12 @@ This is a mirror of http://www.vim.org/scripts/script.php?script_id=441
 
 Sometimes, when you work on different projects, you have the problem, that they use different indentation, tab expansion and so on. You need vimrc for each project that overrides your prefered settings from ~/.vimrc
 
-This plugin searches for local vimrc files in the filesystem tree of the currently opened file. By default it searches for all ".lvimrc" files from the file's directory up to the root directory and loads them in reverse order. The filename and amount of loaded files is customizable through global variables.
+This plugin searches for local vimrc files in the file system tree of the currently opened file. By default it searches for all ".lvimrc" files from the file's directory up to the root directory and loads them in reverse order. The filename and amount of loaded files are customizable through global variables.
 
-Variables:
+For security reasons it the plugin asks for confirmation before loading a local vimrc file and loads it using :sandbox command. The plugin asks once per session and local vimrc before loading it, if the file didn't change since previous loading.
 
-g:localvimrc_name
-  Filename of local vimrc files. Defaults to ".lvimrc".
+It is possible to define a whitelist and a blacklist of local vimrc files that are loaded or ignored unconditionally.
 
-g:localvimrc_count
-  On the way from root, the last localvimrc_count files are sourced. Defaults to -1 (all)
+If you think this plugin could be improved, fork on GitHub and send a pull request or just tell me your ideas.
 
-g:localvimrc_sandbox
-  Source the found local vimrc files in a sandbox for security reasons. Defaults to 1.
-
-g:localvimrc_ask
-  Ask before sourcing any local vimrc file. Defaults to 1.
-
+GitHub: https://github.com/embear/vim-localvimrc
