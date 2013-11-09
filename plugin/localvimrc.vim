@@ -1,5 +1,5 @@
 " Name:    localvimrc.vim
-" Version: 2.1.0
+" Version: 2.2.0
 " Author:  Markus Braun <markus.braun@krawel.de>
 " Summary: Vim plugin to search local vimrc files and load them.
 " Licence: This program is free software: you can redistribute it and/or modify
@@ -21,21 +21,32 @@
 if (exists("g:loaded_localvimrc") || &cp)
   finish
 endif
-let g:loaded_localvimrc = 2
+let g:loaded_localvimrc = 1
 
 " check for correct vim version {{{2
-if version < 700
+if version < 702
   finish
 endif
 
 " define default "localvimrc_name" {{{2
+" copy to script local variable to prevent .lvimrc modifying the name option.
 if (!exists("g:localvimrc_name"))
   let s:localvimrc_name = ".lvimrc"
 else
   let s:localvimrc_name = g:localvimrc_name
 endif
 
+" define default "localvimrc_reverse" {{{2
+" copy to script local variable to prevent .lvimrc modifying the reverse
+" option.
+if (!exists("g:localvimrc_reverse"))
+  let s:localvimrc_reverse = 0
+else
+  let s:localvimrc_reverse = g:localvimrc_reverse
+endif
+
 " define default "localvimrc_count" {{{2
+" copy to script local variable to prevent .lvimrc modifying the count option.
 if (!exists("g:localvimrc_count"))
   let s:localvimrc_count = -1
 else
@@ -52,8 +63,7 @@ else
 endif
 
 " define default "localvimrc_ask" {{{2
-" copy to script local variable to prevent .lvimrc disabling the sandbox
-" again.
+" copy to script local variable to prevent .lvimrc modifying the ask option.
 if (!exists("g:localvimrc_ask"))
   let s:localvimrc_ask = 1
 else
@@ -102,7 +112,7 @@ if has("autocmd")
     autocmd!
 
     " call s:LocalVimRC() when creating ore reading any file
-    autocmd VimEnter,BufNewFile,BufRead * call s:LocalVimRC()
+    autocmd BufWinEnter * call s:LocalVimRC()
   augroup END
 endif
 
@@ -148,7 +158,17 @@ function! s:LocalVimRC()
   if (s:localvimrc_count >= 0 && s:localvimrc_count < len(l:rcfiles))
     call remove(l:rcfiles, 0, len(l:rcfiles) - s:localvimrc_count - 1)
   endif
+
+  " reverse order of found files if reverse loading is requested
+  if (s:localvimrc_reverse != 0)
+    call reverse(l:rcfiles)
+  endif
+
   call s:LocalVimRCDebug(1, "candidate files: " . string(l:rcfiles))
+
+  " store name and directory of file
+  let g:localvimrc_file = resolve(expand("<afile>"))
+  let g:localvimrc_file_dir = fnamemodify(g:localvimrc_file, ":h")
 
   " source all found local vimrc files along path from root (reverse order)
   let l:answer = ""
@@ -243,6 +263,10 @@ function! s:LocalVimRC()
 
       " should this rc file be loaded?
       if (l:rcfile_load == "yes")
+        " store name and directory of script
+        let g:localvimrc_script = l:rcfile
+        let g:localvimrc_script_dir = fnamemodify(g:localvimrc_script, ":h")
+
         let l:command = "silent "
 
         " add 'sandbox' if requested
@@ -256,6 +280,9 @@ function! s:LocalVimRC()
         exec l:command
         call s:LocalVimRCDebug(1, "sourced " . l:rcfile)
 
+        " remove global variables again
+        unlet g:localvimrc_script
+        unlet g:localvimrc_script_dir
       else
         call s:LocalVimRCDebug(1, "skipping " . l:rcfile)
       endif
@@ -266,8 +293,9 @@ function! s:LocalVimRC()
     endif
   endfor
 
-  " clear command line
-  redraw!
+  " remove global variables again
+  unlet g:localvimrc_file
+  unlet g:localvimrc_file_dir
 
   " make information persistent
   call s:LocalVimRCWritePersistent()
@@ -314,9 +342,15 @@ endfunction
 " read decision variables from global variable
 "
 function! s:LocalVimRCReadPersistent()
-  if (s:localvimrc_persistent == 1)
+  if (s:localvimrc_persistent >= 1)
     if stridx(&viminfo, "!") >= 0
       if exists("g:LOCALVIMRC_ANSWERS")
+        " force g:LOCALVIMRC_ANSWERS to be a dictionary
+        if (type(g:LOCALVIMRC_ANSWERS) != type({}))
+          unlet g:LOCALVIMRC_ANSWERS
+          let g:LOCALVIMRC_ANSWERS = {}
+          call s:LocalVimRCDebug(3, "needed to reset g:LOCALVIMRC_ANSWERS")
+        endif
         for l:rcfile in keys(g:LOCALVIMRC_ANSWERS)
           " overwrite answers with persistent data
           let s:localvimrc_answers[l:rcfile] = g:LOCALVIMRC_ANSWERS[l:rcfile]
@@ -324,6 +358,12 @@ function! s:LocalVimRCReadPersistent()
         call s:LocalVimRCDebug(3, "read answer persistent data: " . string(s:localvimrc_answers))
       endif
       if exists("g:LOCALVIMRC_CHECKSUMS")
+        " force g:LOCALVIMRC_CHECKSUMS to be a dictionary
+        if (type(g:LOCALVIMRC_CHECKSUMS) != type({}))
+          unlet g:LOCALVIMRC_CHECKSUMS
+          let g:LOCALVIMRC_CHECKSUMS = {}
+          call s:LocalVimRCDebug(3, "needed to reset g:LOCALVIMRC_CHECKSUMS")
+        endif
         " overwrite checksums with persistent data
         let s:localvimrc_checksums = g:LOCALVIMRC_CHECKSUMS
         call s:LocalVimRCDebug(3, "read checksum persistent data: " . string(s:localvimrc_checksums))
@@ -337,7 +377,7 @@ endfunction
 " write decision variables to global variable to make them persistent
 "
 function! s:LocalVimRCWritePersistent()
-  if (s:localvimrc_persistent == 1)
+  if (s:localvimrc_persistent >= 1)
     " select only data relevant for persistence
     let l:persistent_answers = filter(copy(s:localvimrc_answers), 'v:val =~# "^[YN]$"')
     let l:persistent_checksums = {}
